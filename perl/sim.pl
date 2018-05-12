@@ -5,126 +5,23 @@
 use strict;
 use warnings;
 
-use List::Util qw(sum);
+use List::Util qw(sum shuffle);
 
-my $learn_sample_size = 200;
-my $learn_prop_labeled = 0.50;
-my $test_sample_size = 200;
+my @nl_sample_sizes = qw/50 200 500/; # labeled
+my @nu_sample_sizes = qw/50 200 500/; # unlabled
+my $num_replications = 10;
 
 my $test_length = 30;
-my $pop_mean_citc
+my $pop_validity = 0.20;
 
-
-my $pfn = shift or die( "Please supply a pool filename\n" );
-
-open( my $fh, "<$pfn" ) or die( "Cannot open pool file \"$pfn\": $!\n" );
-
-my %items;
-while ( my $line = <$fh> ) { 
-  $line =~ s/[\r\n]*//g;
-  $line =~ s/#.*$//g;
-  next unless( $line );
-  my($item_id, $obj, undef, $diff, $citc) = split /\t/, $line;
-  next if( $item_id =~ /^\s*item\s*$/i );
-  $items{$item_id} = {
-    obj => $obj,
-    diff => $diff,
-    citc => $citc,
-  };
-}
-
-close($fh);
-
-print "Found ", scalar keys %items, " items\n";
-
-# print pool summary
-
-print "mean difficulty and citc by objective\n";
-printf " %7s %7s %7s %7s\n", qw/obj n diff citc/;
-for my $obj ( 1 .. 10 ) { 
-  my $avg_diff = 0;
-  my $avg_citc = 0;
-  my $n = 0;
-  for my $id ( sort{ $a <=> $b } keys %items ) { 
-    next unless( $items{$id}{obj} eq $obj );
-    $n++;
-    $avg_diff += $items{$id}{diff};
-    $avg_citc += $items{$id}{citc};
-  }
-  $avg_diff /= $n if( $n );
-  $avg_citc /= $n if( $n );
-  printf " %7d %7d %7.3f %7.3f\n", $obj, $n, $avg_diff, $avg_citc;
-}
-
-# simulation
-
-my $reps = 1000;
-
-my %results;
-my @avg_diffs;
-my @avg_citcs;
-for my $it ( 1 .. $reps ) { 
-  my $avg_diff = 0;
-  my $avg_citc = 0;
-  for my $obj ( 1 .. 10 ) { 
-    my @avail;
-    for my $id ( keys %items ) { 
-      next unless( $items{$id}{obj} eq $obj );
-      push( @avail, $id );
+for my $nl ( @nl_sample_sizes ) { 
+  for my $nu ( @nu_sample_sizes ) { 
+    for my $rep ( 1 .. $num_replications ) { 
+      print "Replication $rep, NL = $nl, NU = $nu\n";
     }
-    die "Zero items available for objective $obj!\n" unless( @avail );
-    shuffle( \@avail );
-    my $id = $avail[0];
-    $avg_diff += $items{$id}{diff};
-    $avg_citc += $items{$id}{citc};
   }
-  $avg_diff /= 10;
-  $avg_citc /= 10;
-  push( @avg_diffs, $avg_diff );
-  push( @avg_citcs, $avg_citc );
-  $results{$it} = { 
-    diff => $avg_diff, 
-    citc => $avg_citc, 
-  };
 }
 
-my($min_diff, $max_diff) = minmax( @avg_diffs );
-my($pct25_diff, $pct50_diff, $pct75_diff ) = interquartile_range( @avg_diffs );
-my $avg_diff = mean( @avg_diffs );
-my $sd_diff = std_dev( @avg_diffs );
-
-my($min_citc, $max_citc) = minmax( @avg_citcs );
-my($pct25_citc, $pct50_citc, $pct75_citc ) = interquartile_range( @avg_citcs );
-my $avg_citc = mean( @avg_citcs );
-my $sd_citc = std_dev( @avg_citcs );
-
-for ( $avg_diff, $sd_diff, $pct50_diff, $pct25_diff, $pct75_diff, $min_diff, $max_diff, 
-      $avg_citc, $sd_citc, $pct50_citc, $pct25_citc, $pct75_citc, $min_citc, $max_citc ) { 
-  $_ = sprintf "%.3f", $_;
-}
-
-print<<EOF;
-
-Simulation
-
-Difficulty (proportion correct)
-
-mean   : $avg_diff
-SD     : $sd_diff
-median : $pct50_diff
-IQR    : [ $pct25_diff, $pct75_diff ]
-range  : [ $min_diff, $max_diff ]
-
-
-Corrected Item-Total Correlation (higher is better)
-
-mean   : $avg_citc
-SD     : $sd_citc
-median : $pct50_citc
-IQR    : [ $pct25_citc, $pct75_citc ]
-range  : [ $min_citc, $max_citc ]
-
-EOF
 
 
 # calculate mean
@@ -205,7 +102,7 @@ sub std_dev {
 
 
 # randomly permutate @array in place Fisher-Yates shuffle
-sub shuffle {
+sub fisheryates_shuffle {
   my $array = shift;
   my $i = @$array;
   while ( --$i ) {
