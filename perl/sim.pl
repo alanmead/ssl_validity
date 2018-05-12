@@ -14,14 +14,43 @@ my $num_replications = 10;
 my $test_length = 30;
 my $pop_validity = 0.20;
 
+my %details;
 for my $nl ( @nl_sample_sizes ) { 
   for my $nu ( @nu_sample_sizes ) { 
     for my $rep ( 1 .. $num_replications ) { 
-      print "Replication $rep, NL = $nl, NU = $nu\n";
+      #print "Replication $rep, NL = $nl, NU = $nu\n";
+      simulate( \%details, {
+        nl => $nl,
+	nu => $nu,
+	pop_r => 0.20,
+	crit_reliab => 0.70,
+	test_reliab => 0.80,
+	test_mean => 20,
+	test_sd => 3,
+	rep => $rep,
+      });
     }
   }
 }
 
+sub simulate {
+  my($details, $options) = @_;
+  print<<EOF;
+Simulation Options
+------------------
+
+number labeled        : $$options{nl}
+number unlabeled      : $$options{nu}
+population validity   : $$options{pop_r}
+criterion reliabiity  : $$options{crit_reliab}
+predictor reliability : $$options{test_reliab}
+predictor mean        : $$options{test_mean}
+predictor SD          : $$options{test_sd}
+replication           : $$options{rep}
+
+EOF
+
+} # simulate
 
 
 # calculate mean
