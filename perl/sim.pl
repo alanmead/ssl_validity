@@ -33,8 +33,9 @@ for my $nl ( @nl_sample_sizes ) {
   }
 }
 
-sub simulate {
-  my($details, $options) = @_;
+sub print_simulaton_options {
+  my($options) = @_;
+
   print<<EOF;
 Simulation Options
 ------------------
@@ -49,6 +50,15 @@ predictor SD          : $$options{test_sd}
 replication           : $$options{rep}
 
 EOF
+
+} # print_simulaton_options
+
+
+
+sub simulate {
+  my($details, $options) = @_;
+
+  print_simulaton_options( $options ); # debug
 
 } # simulate
 
