@@ -8,6 +8,8 @@ use warnings;
 use List::Util qw(sum shuffle);
 use Statistics::Basic qw/correlation/;
 
+$|++; # force output to be unbuffered (so we see the progress)
+
 my $global_verbose = 1;
 
 my @nl_sample_sizes = qw/20 50 100 200 500/; # labeled
@@ -18,7 +20,7 @@ my $num_replications = 500;
 my $test_length = 30;
 
 my %details;
-for my $pop_validity ( @nl_sample_sizes ) { 
+for my $pop_validity ( @pop_vals ) { 
   for my $nl ( @nl_sample_sizes ) { 
     for my $nu ( @nu_sample_sizes ) { 
       for my $rep ( 1 .. $num_replications ) { 
@@ -74,7 +76,8 @@ sub simulate {
   # sanity check options; apply defaults
   my $nl = $$options{nl} || 100;
   my $nu = $$options{nu} || 200;
-  my $pop_r = $$options{pop_r} || 200;
+  my $pop_r = $$options{pop_r};
+  die( "simulate(): No population validity!\n" ) unless( defined( $pop_r ));
   my $crit_rel = $$options{crit_rel} || 0.80;
   my $test_rel = $$options{test_rel} || 0.80;
   my $test_mn  = $$options{test_mn} || 20;
