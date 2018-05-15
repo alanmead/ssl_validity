@@ -10,30 +10,32 @@ use Statistics::Basic qw/correlation/;
 
 my $global_verbose = 1;
 
-my @nl_sample_sizes = qw/50 100 200 500/; # labeled
-my @nu_sample_sizes = qw/50 100 200 500 1000/; # unlabled
-my $num_replications = 200;
+my @nl_sample_sizes = qw/20 50 100 200 500/; # labeled
+my @nu_sample_sizes = qw/20 50 100 200 500 1000/; # unlabled
+my @pop_vals = qw/0 0.20 0.30 0.40 0.60 0.80/;
+my $num_replications = 500;
 
 my $test_length = 30;
-my $pop_validity = 0.30;
 
 my %details;
-for my $nl ( @nl_sample_sizes ) { 
-  for my $nu ( @nu_sample_sizes ) { 
-    for my $rep ( 1 .. $num_replications ) { 
-      my $cond = "NL=$nl,NU=$nu";
-      #print "Replication $rep, NL = $nl, NU = $nu\n";
-      simulate( \%details, $cond, $rep,
-      {
-        nl => $nl,
-	nu => $nu,
-	pop_r => $pop_validity,
-	crit_rel => 0.70,
-	test_rel => 0.80,
-	test_mn => 20,
-	test_sd => 3,
-	nmatch => 5,
-      });
+for my $pop_validity ( @nl_sample_sizes ) { 
+  for my $nl ( @nl_sample_sizes ) { 
+    for my $nu ( @nu_sample_sizes ) { 
+      for my $rep ( 1 .. $num_replications ) { 
+        my $cond = "rho=$pop_validity,NL=$nl,NU=$nu";
+        #print "Replication $rep, NL = $nl, NU = $nu\n";
+        simulate( \%details, $cond, $rep,
+        {
+          nl => $nl,
+	  nu => $nu,
+	  pop_r => $pop_validity,
+	  crit_rel => 0.70,
+	  test_rel => 0.80,
+	  test_mn => 0.67*$test_length,
+	  test_sd => 0.10*$test_length,
+	  nmatch => 5,
+        });
+      }
     }
   }
 }
@@ -54,7 +56,7 @@ for my $cond ( keys %details ) {
   my $sd_sup = std_dev( @r_sup );
   my $sd_semi = std_dev( @r_semi );
 
-  printf( "cond = %s, reps = %d, mu sup r = %.3f (sd=%.3f), mu semi r = %.3f (sd=%.3f)\n", 
+  printf( "cond=%s, reps=%d, sup_r_mn=%.3f, sup_r_sd=%.3f, semi_r_mn=%.3f, semi_r_sd=%.3f\n", 
     $cond,
     $num_replications,
     $mu_sup,
