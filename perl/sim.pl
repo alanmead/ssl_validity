@@ -7,10 +7,17 @@ use warnings;
 
 use List::Util qw(sum shuffle);
 use Statistics::Basic qw/correlation/;
+use Data::Dumper;
 
 $|++; # force output to be unbuffered (so we see the progress)
 
 my $global_verbose = 1;
+
+# for debugging
+#my @nl_sample_sizes = qw/100/; # labeled
+#my @nu_sample_sizes = qw/20 50 100 200 500 1000/; # unlabled
+#my @pop_vals = qw/0.40/;
+#my $num_replications = 5;
 
 my @nl_sample_sizes = qw/20 50 100 200 500/; # labeled
 my @nu_sample_sizes = qw/20 50 100 200 500 1000/; # unlabled
@@ -82,7 +89,7 @@ sub simulate {
   my $test_rel = $$options{test_rel} || 0.80;
   my $test_mn  = $$options{test_mn} || 20;
   my $test_sd  = $$options{test_sd} || 3;
-  my $nmatching  = $$options{nmatching} || 20;
+  my $nmatch  = $$options{nmatch} || 20;
 
   #print_simulaton_options( $options ); # debug
 
@@ -90,6 +97,7 @@ sub simulate {
   #printf "%10s %10s %10s %10s\n", qw/id obs_x obs_y labeled/; # debug
   #my(@xs,@ys); # debug
   my %data;
+  my $num_items = 0;
   for my $id ( 1 .. $nl+$nu ) { 
     my($x1,$x2) =  gaussian_rand();
     my($x3,$x4) =  gaussian_rand();
@@ -99,9 +107,11 @@ sub simulate {
     $obs_x = int( $obs_x * $test_sd + $test_mn + 0.5 );
     $obs_x = 0 if( $obs_x < 0 );
     my $obs_y = sqrt($crit_rel) * $true_y + sqrt( 1 - $crit_rel ) * $x4;
+    $obs_y = int( 20 * $obs_y + 50 ); # slightly easier to have these be smallish integers
     $data{$id}{obs_x} = $obs_x;
     $data{$id}{obs_y} = $obs_y;
     $data{$id}{labeled} = ( $id <= $nl ? 1 : 0 );
+    $num_items = $obs_x if( $obs_x > $num_items );
     #printf "%10d %10.2f %10.2f %10d\n", $id, $obs_x, $obs_y, $data{$id}{labeled}; # debug
     #push( @xs, $true_x ); # debug
     #push( @ys, $obs_x ); # debug
@@ -110,13 +120,24 @@ sub simulate {
   #warn "generated $nl labeled and $nu unlabeled cases\n" if( $global_verbose );
 
   # impute the missing labels for the unlabeled dataset
+
+  my $imputation_data = compute_imputation_data( \%data, $nmatch, $num_items );
+
+#  # debug
+#  for my $score ( 0 .. $num_items ) { 
+#    printf "%5d %s\n", $score, join( ',', sort{ $a <=> $b} @{ $$imputation_data{$score}} );
+#  }
+
+  #print "\nimputation_data:\n", Dumper( $imputation_data ),"\n";
+
   for my $id ( keys %data ) { 
     if( $data{$id}{labeled} ) {
       $data{$id}{y} = $data{$id}{obs_y};
       next; # skip to next record
     }
 
-    $data{$id}{y} = impute( \%data, $data{$id}{obs_x}, $nmatching );
+    #$data{$id}{y} = impute( \%data, $data{$id}{obs_x}, $nmatch );
+    $data{$id}{y} = impute( $imputation_data, $data{$id}{obs_x} );
   }
 
   # compute validity coefficients
@@ -131,14 +152,67 @@ sub simulate {
     }
     $details{$cond}{$rep}{r_sup} = correlation( \@x_sup, \@y_sup );
     $details{$cond}{$rep}{r_semi} = correlation( \@x_semi, \@y_semi );
-    printf( "supervised r = %.3f, semi-supervised r = %.3f\n", $details{$cond}{$rep}{r_sup}, $details{$cond}{$rep}{r_semi} ) if( $global_verbose );
+    printf( "$cond:$rep: supervised r = %.3f, semi-supervised r = %.3f\n", $details{$cond}{$rep}{r_sup}, $details{$cond}{$rep}{r_semi} ) if( $global_verbose );
   }
 
 } # simulate
 
+
+
 # impute - performs score matching imputation
 sub impute { 
+  my( $data, $score ) = @_;
+
+  my @set = @{ $$data{$score} };
+  return $set[rand @set];
+
+} # impute
+
+
+# compute imputation data - creates a hash where $data{$score} is an arrayref to the y scores for that score
+sub compute_imputation_data { 
+  my( $data, $nmatch, $num_items ) = @_;
+
+  my %imputation_data;
+
+#  print "debug:\n\n\n"; # debug
+
+  die "matching N > M!\n" unless( $nmatch < scalar keys %$data );
+
+  for my $score ( 0 .. $num_items ) { 
+    my @matching_ids;
+    my $mc = -1;
+    do {
+      @matching_ids = ();
+      $mc++;
+      for my $id ( keys %$data ) { 
+        next unless( $$data{$id}{labeled} ); # skip unlabeled data
+        push(  @matching_ids, $id ) if( abs( $$data{$id}{obs_x} - $score ) <= $mc );
+      }
+      #print "debug: nmatch=$nmatch, mc=$mc, score=$score, #ids = ", scalar @matching_ids, "\n"; # debug
+    } until( scalar @matching_ids >= $nmatch );
+
+    # I want the Y-scores, not the ID's so...
+    my @yscores;
+    for my $id( @matching_ids ) { 
+      push( @yscores, $$data{$id}{obs_y} );
+    }
+  
+    $imputation_data{$score} = [ @yscores ];
+
+  }
+
+  return \%imputation_data;
+
+} # compute_imputation_data
+
+
+# old (slow) impute - performs score matching imputation
+sub old_slow_impute { 
   my( $data, $score, $nmatch ) = @_;
+
+  # if we ever run this old code, we get an assertion
+  die( "returns ID's, not Y values. seems like a bug!\nsee compute_imputation_data()\n" );
 
   die "matching N > M!\n" unless( $nmatch < scalar keys %$data );
 
